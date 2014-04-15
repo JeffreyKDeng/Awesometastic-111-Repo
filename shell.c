@@ -21,6 +21,7 @@ void waitywait(int seconds);
 int main(int argc, char *argv[]) {
     char **args; 
 
+    /* setup signal handlers */)
     if(signal(SIGCHLD, signal_handler) == SIG_ERR) 
         printf("Error catching SIGCHLD \n");
     if(signal(SIGINT, signal_handler) == SIG_ERR){
@@ -70,7 +71,12 @@ void command(char ** args){
 
         else if(!strcmp(args[i], ">")){
             if(args[i+1] != NULL){
+
+                /* If we haven't already found a first 
+                    redirect marker, we set it here */
                 if(redir == -1) redir = i;
+
+                /* Open file to write to */
                 out = freopen(args[i+1], "w", stdout);
                 if(out == NULL) {
                     printf("file could not be opened for write\n");
@@ -81,6 +87,8 @@ void command(char ** args){
             }
         }
 
+        /* see the analogous 'else if' statement
+            above for relevant comments */
         else if(!strcmp(args[i], "<")){
             if(args[i+1] != NULL){  
                 if(redir == -1) redir = i;  
@@ -94,6 +102,9 @@ void command(char ** args){
             }
         }
     }
+
+    /* we've already redirected relevant filestreams,
+        so we just need to end the string at the proper place */
     if(redir != -1) args[redir] = NULL;
     execute(args, bg);
 
