@@ -16,11 +16,13 @@
 
 PRIVATE timer_t sched_timer;
 PRIVATE unsigned balance_timeout;
+PRIVATE unsigned number_proc;
 
 #define BALANCE_TIMEOUT	5 /* how often to balance queues in seconds */
 
 FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp)	);
 FORWARD _PROTOTYPE( void balance_queues, (struct timer *tp)		);
+int schdule_lottery(int num_proc, struct schedproc *proc);
 
 #define DEFAULT_USER_TIME_SLICE 200
 
@@ -47,6 +49,8 @@ PUBLIC int do_noquantum(message *m_ptr)
 	if ((rv = schedule_process(rmp)) != OK) {
 		return rv;
 	}
+	
+	 rmp->tickets -= 1;
 	return OK;
 }
 
@@ -111,7 +115,8 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 		/* We have a special case here for system processes, for which
 		 * quanum and priority are set explicitly rather than inherited 
 		 * from the parent */
-		rmp->priority   = rmp->max_priority;
+
+		rmp->priority  = schdule_lottery(num_proc, rmp);
 		rmp->time_slice = (unsigned) m_ptr->SCHEDULING_QUANTUM;
 		break;
 		
@@ -122,7 +127,7 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 		if ((rv = sched_isokendpt(m_ptr->SCHEDULING_PARENT,
 				&parent_nr_n)) != OK)
 			return rv;
-
+         num_proc +=1;
 		rmp->priority = schedproc[parent_nr_n].priority;
 		rmp->time_slice = schedproc[parent_nr_n].time_slice;
 		break;
@@ -160,6 +165,25 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 	return OK;
 }
 
+
+int schdule_lottery(int num_proc, struct schedproc *proc) {
+        if (num_proc > 0) {
+             int upper_bound = -1;
+             int lower_bound = 0;
+             int draw = (random() % tickets_total) + 1;
+             int i;
+             for (i = 0; i < num_proc; i++) {
+                   upper_bound += proc[i]->tickets + 1;
+                   if (draw <= upper_bound && draw >= lower_bound) {
+                            return 16;
+                         }
+                    } 
+                    lower_bound += proc[i]->tickets + 1;
+             }
+       }
+}
+
+
 /*===========================================================================*
  *				do_nice					     *
  *===========================================================================*/
@@ -181,7 +205,12 @@ PUBLIC int do_nice(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	new_q = (unsigned) m_ptr->SCHEDULING_MAXPRIO;
+	if(proc_nr_n ==16){
+	    new_q = 17;
+	}else{
+	    new_q = (unsigned) m_ptr->SCHEDULING_MAXPRIO;
+	}
+	
 	if (new_q >= NR_SCHED_QUEUES) {
 		return EINVAL;
 	}
@@ -189,7 +218,6 @@ PUBLIC int do_nice(message *m_ptr)
 	/* Store old values, in case we need to roll back the changes */
 	old_q     = rmp->priority;
 	old_max_q = rmp->max_priority;
-
 	/* Update the proc entry and reschedule the process */
 	rmp->max_priority = rmp->priority = new_q;
 
@@ -249,7 +277,8 @@ PRIVATE void balance_queues(struct timer *tp)
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE) {
 			if (rmp->priority > rmp->max_priority) {
-				rmp->priority -= 1; /* increase priority */
+				rmp->tickets +=1;
+				/*rmp->priority -= 1; /* increase priority */
 				schedule_process(rmp);
 			}
 		}
