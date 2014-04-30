@@ -18,12 +18,12 @@ EXTERN struct schedproc {
 	endpoint_t endpoint;	/* process endpoint id */
 	endpoint_t parent;	/* parent endpoint id */
 	unsigned flags;		/* flag bits */
-	unsigned tickets;
-	
 	/* User space scheduling */
 	unsigned max_priority;	/* this process' highest allowed priority */
 	unsigned priority;		/* the process' current priority */
 	unsigned time_slice;		/* this process's time slice */
+	unsigned tickets;
+	unsigned proc_n;
 } schedproc[NR_PROCS];
 
 /* Flag values */
